@@ -3,26 +3,33 @@
 #include "user/user.h"
 #include "kernel/fs.h"
 
-#define MAX_ENTRIES 128
-#define MAX_DEPTH 64
+// Hàm in ra các khoảng trắng và ký tự nối dạng cây
+void print_indent(int level, int *is_last) {
+    for (int i = 0; i < level; i++) {
+        if (i == level - 1) {
+            if (is_last[i]) {
+                printf("└── ");
+            } else {
+                printf("├── ");
+            }
+        } else {
+            if (is_last[i]) {
+                printf("    ");
+            } else {
+                printf("│   ");
+            }
+        }
+    }
+}
 
-struct entry_info {
-    char name[DIRSIZ + 1];
-    short type;
-};
-
-// Hàm duyệt đệ quy in cây thư mục
-void tree_rec(char *path, int current_depth, int max_depth, int only_dir, int is_last_level[MAX_DEPTH]) {
-    int fd;
-    struct stat st;
-    struct dirent de;
-    struct entry_info entries[MAX_ENTRIES];
-    int count = 0;
-
-    // Giới hạn độ sâu đệ quy (-L)
-    if (max_depth != -1 && current_depth >= max_depth) {
+// Hàm đệ quy duyệt cây
+void tree(char *path, int level, int maxDepth, int onlyDir, int *is_last) {
+    if (maxDepth != -1 && level >= maxDepth) {
         return;
     }
+
+    int fd;
+    struct stat st;
 
     if ((fd = open(path, 0)) < 0) {
         fprintf(2, "tree: cannot open %s\n", path);
@@ -35,121 +42,83 @@ void tree_rec(char *path, int current_depth, int max_depth, int only_dir, int is
         return;
     }
 
-    if (st.type != T_DIR) {
+    if (st.type == T_DIR) {
+        struct dirent de;
+        // Dùng malloc để tránh tràn stack trong hàm đệ quy
+        struct dirent *entries = malloc(256 * sizeof(struct dirent));
+        if(entries == 0){
+            fprintf(2, "tree: malloc failed\n");
+            close(fd);
+            return;
+        }
+        int count = 0;
+
+        while (read(fd, &de, sizeof(de)) == sizeof(de)) {
+            if (de.inum == 0)
+                continue;
+            
+            if (strcmp(de.name, ".") == 0 || strcmp(de.name, "..") == 0)
+                continue;
+
+            char buf[256]; // Giảm kích thước buffer (xv6 dir paths thường không quá dài)
+            strcpy(buf, path);
+            char *p = buf + strlen(buf);
+            *p++ = '/';
+            strcpy(p, de.name);
+
+            struct stat st2;
+            if (stat(buf, &st2) < 0)
+                continue;
+
+            if (onlyDir && st2.type != T_DIR)
+                continue;
+
+            if (count < 256) {
+                entries[count++] = de;
+            }
+        }
         close(fd);
-        return;
-    }
 
-    // Đọc tất cả các entry hợp lệ trong thư mục hiện tại
-    while (read(fd, &de, sizeof(de)) == sizeof(de)) {
-        if (de.inum == 0)
-            continue;
-        
-        // Bỏ qua "." và ".."
-        if (strcmp(de.name, ".") == 0 || strcmp(de.name, "..") == 0)
-            continue;
+        for (int i = 0; i < count; i++) {
+            char buf[256];
+            strcpy(buf, path);
+            char *p = buf + strlen(buf);
+            *p++ = '/';
+            strcpy(p, entries[i].name);
 
-        // Tạo đường dẫn con để kiểm tra stat (loại file hay directory)
-        char subpath[512];
-        if (strlen(path) + 1 + strlen(de.name) + 1 > sizeof(subpath))
-            continue;
+            is_last[level] = (i == count - 1);
+            print_indent(level + 1, is_last);
+            printf("%s\n", entries[i].name);
 
-        strcpy(subpath, path);
-        int len = strlen(subpath);
-        if (len > 0 && subpath[len - 1] != '/') {
-            subpath[len] = '/';
-            subpath[len + 1] = 0;
-        }
-        safestrcpy(subpath + strlen(subpath), de.name, DIRSIZ + 1);
-
-        struct stat subst;
-        if (stat(subpath, &subst) < 0)
-            continue;
-
-        // Nếu có cờ -d, chỉ xét thư mục con
-        if (only_dir && subst.type != T_DIR)
-            continue;
-
-        if (count < MAX_ENTRIES) {
-            safestrcpy(entries[count].name, de.name, DIRSIZ + 1);
-            entries[count].type = subst.type;
-            count++;
-        }
-    }
-    close(fd);
-
-    // In từng entry và đệ quy vào các thư mục con
-    for (int i = 0; i < count; i++) {
-        int is_last = (i == count - 1);
-        is_last_level[current_depth] = is_last;
-
-        // In các tiền tố thụt lề
-        for (int j = 0; j < current_depth; j++) {
-            if (is_last_level[j]) {
-                printf("    ");
-            } else {
-                printf("│   ");
+            struct stat st2;
+            if (stat(buf, &st2) >= 0 && st2.type == T_DIR) {
+                tree(buf, level + 1, maxDepth, onlyDir, is_last);
             }
         }
-
-        // In nhánh kết nối hiện tại
-        if (is_last) {
-            printf("└── ");
-        } else {
-            printf("├── ");
-        }
-
-        printf("%s\n", entries[i].name);
-
-        // Đệ quy nếu entry là thư mục
-        if (entries[i].type == T_DIR) {
-            char subpath[512];
-            strcpy(subpath, path);
-            int len = strlen(subpath);
-            if (len > 0 && subpath[len - 1] != '/') {
-                subpath[len] = '/';
-                subpath[len + 1] = 0;
-            }
-            safestrcpy(subpath + strlen(subpath), entries[i].name, DIRSIZ + 1);
-
-            tree_rec(subpath, current_depth + 1, max_depth, only_dir, is_last_level);
-        }
+        free(entries); // Giải phóng bộ nhớ sau khi đệ quy xong thư mục hiện tại
+    } else {
+        close(fd);
     }
 }
 
 int main(int argc, char *argv[]) {
     char *path = ".";
-    int max_depth = -1; // -1: không giới hạn độ sâu
-    int only_dir = 0;
+    int maxDepth = -1;
+    int onlyDir = 0;
 
-    // Xử lý tham số dòng lệnh
     for (int i = 1; i < argc; i++) {
-        if (strcmp(argv[i], "-d") == 0) {
-            only_dir = 1;
-        } else if (strcmp(argv[i], "-L") == 0) {
-            if (i + 1 < argc) {
-                max_depth = atoi(argv[++i]);
-            } else {
-                fprintf(2, "usage: tree [path] [-L depth] [-d]\n");
-                exit(1);
-            }
-        } else if (argv[i][0] != '-') {
-            path = argv[i];
+        if (strcmp(argv[i], "-L") == 0 && i + 1 < argc) {
+            maxDepth = atoi(argv[++i]);
+        } else if (strcmp(argv[i], "-d") == 0) {
+            onlyDir = 1;
         } else {
-            fprintf(2, "usage: tree [path] [-L depth] [-d]\n");
-            exit(1);
+            path = argv[i];
         }
     }
 
-    // In đường dẫn gốc
+    int is_last[64]; 
     printf("%s\n", path);
-
-    int is_last_level[MAX_DEPTH];
-    for (int i = 0; i < MAX_DEPTH; i++) {
-        is_last_level[i] = 0;
-    }
-
-    tree_rec(path, 0, max_depth, only_dir, is_last_level);
-
+    tree(path, 0, maxDepth, onlyDir, is_last);
+    
     exit(0);
 }
