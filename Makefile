@@ -195,6 +195,7 @@ UPROGS=\
 	$U/_wc\
 	$U/_zombie\
 	$U/_cp\
+	$U/_tree\
 
 
 ifeq ($(LAB),syscall)
