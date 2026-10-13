@@ -198,6 +198,7 @@ UPROGS=\
 	$U/_tree\
 	$U/_sleeptest\
 	$U/_diff\
+	$U/_du\
 
 
 ifeq ($(LAB),syscall)
