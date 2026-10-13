@@ -196,6 +196,8 @@ UPROGS=\
 	$U/_zombie\
 	$U/_cp\
 	$U/_tree\
+	$U/_sleeptest\
+	$U/_diff\
 
 
 ifeq ($(LAB),syscall)

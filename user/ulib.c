@@ -145,3 +145,32 @@ memcpy(void *dst, const void *src, uint n)
 {
   return memmove(dst, src, n);
 }
+
+int 
+readline(int fd, char *buf, int max)
+{
+  int i=0;
+  char c;
+  int n;
+  
+  while ( i < max-1){
+    n=read(fd, &c, 1);
+
+    if (n<=0){
+      break;
+    }
+
+    buf[i]=c;
+    i++;
+
+    if (c=='\n'){
+      break;
+    }
+  }
+
+  if (i==0 && n<=0)
+    return -1;
+
+  buf[i]='\0';
+  return i;
+}
