@@ -2,6 +2,35 @@
 #include "kernel/fcntl.h"
 #include "user/user.h"
 
+int 
+readline(int fd, char *buf, int max)
+{
+  int i=0;
+  char c;
+  int n;
+  
+  while ( i < max-1){
+    n=read(fd, &c, 1);
+
+    if (n<=0){
+      break;
+    }
+
+    buf[i]=c;
+    i++;
+
+    if (c=='\n'){
+      break;
+    }
+  }
+
+  if (i==0 && n<=0)
+    return -1;
+
+  buf[i]='\0';
+  return i;
+}
+
 int main(int argc, char *argv[])
 {
     int f1, f2;
@@ -44,16 +73,16 @@ int main(int argc, char *argv[])
 
         exit(1);
     }
-
+// Đọc lần lượt từng dòng trong file
     while (1) {
 
         n1 = readline(f1, buf1, sizeof(buf1));
         n2 = readline(f2, buf2, sizeof(buf2));
-
+    // Nếu cả 2 file hết
         if (n1 <= 0 && n2 <= 0) {
             break;
         }
-
+    // Nếu 1 trong 2 file hết
         if (n1 <= 0) {
             diff = 1;
 
@@ -77,7 +106,7 @@ int main(int argc, char *argv[])
             pos++;
             continue;
         }
-
+        //Nếu cả 2 còn
         if (strcmp(buf1, buf2) != 0) {
             diff = 1;
 

@@ -41,5 +41,3 @@ void *memcpy(void *, const void *, uint);
 // umalloc.c
 void* malloc(uint);
 void free(void*);
-
-int readline(int fd, char*, int);
