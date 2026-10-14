@@ -2,123 +2,108 @@
 #include "kernel/stat.h"
 #include "user/user.h"
 #include "kernel/fs.h"
+#include "kernel/fcntl.h"
 
-// Hàm in ra các khoảng trắng và ký tự nối dạng cây
-void print_indent(int level, int *is_last) {
-    for (int i = 0; i < level; i++) {
-        if (i == level - 1) {
-            if (is_last[i]) {
-                printf("└── ");
-            } else {
-                printf("├── ");
-            }
-        } else {
-            if (is_last[i]) {
-                printf("    ");
-            } else {
-                printf("│   ");
-            }
-        }
-    }
+void print_indent(int level) {
+  for (int i = 0; i < level - 1; i++) {
+    printf("|   ");
+  }
+  printf("|-- ");
 }
 
-// Hàm đệ quy duyệt cây
-void tree(char *path, int level, int maxDepth, int onlyDir, int *is_last) {
-    if (maxDepth != -1 && level >= maxDepth) {
-        return;
+void tree(char *path, int level, int max_depth, int only_dir) {
+  if (max_depth != -1 && level > max_depth) {
+    return;
+  }
+
+  int fd;
+  struct stat st;
+  struct dirent de;
+  char buf[512], *p;
+
+  if ((fd = open(path, O_RDONLY)) < 0) {
+    fprintf(2, "tree: cannot open %s\n", path);
+    return;
+  }
+
+  if (fstat(fd, &st) < 0 || st.type != T_DIR) {
+    close(fd);
+    return;
+  }
+
+  if (strlen(path) + 1 + DIRSIZ + 1 > sizeof(buf)) {
+    fprintf(2, "tree: path too long\n");
+    close(fd);
+    return;
+  }
+
+  strcpy(buf, path);
+  p = buf + strlen(buf);
+  *p++ = '/';
+
+  while (read(fd, &de, sizeof(de)) == sizeof(de)) {
+    if (de.inum == 0)
+      continue;
+    if (strcmp(de.name, ".") == 0 || strcmp(de.name, "..") == 0)
+      continue;
+
+    memmove(p, de.name, DIRSIZ);
+    p[DIRSIZ] = 0;
+
+    int child_fd;
+    struct stat st_child;
+
+    child_fd = open(buf, O_RDONLY);
+    if (child_fd < 0) {
+        continue;
     }
 
-    int fd;
-    struct stat st;
-
-    if ((fd = open(path, 0)) < 0) {
-        fprintf(2, "tree: cannot open %s\n", path);
-        return;
+    if (fstat(child_fd, &st_child) < 0) {
+        close(child_fd);
+        continue;
     }
 
-    if (fstat(fd, &st) < 0) {
-        fprintf(2, "tree: cannot stat %s\n", path);
-        close(fd);
-        return;
+    close(child_fd);
+
+    if (only_dir && st_child.type != T_DIR) {
+      continue;
     }
 
-    if (st.type == T_DIR) {
-        struct dirent de;
-        // Dùng malloc để tránh tràn stack trong hàm đệ quy
-        struct dirent *entries = malloc(256 * sizeof(struct dirent));
-        if(entries == 0){
-            fprintf(2, "tree: malloc failed\n");
-            close(fd);
-            return;
-        }
-        int count = 0;
+    print_indent(level);
+    printf("%s\n", p);
 
-        while (read(fd, &de, sizeof(de)) == sizeof(de)) {
-            if (de.inum == 0)
-                continue;
-            
-            if (strcmp(de.name, ".") == 0 || strcmp(de.name, "..") == 0)
-                continue;
-
-            char buf[256]; // Giảm kích thước buffer (xv6 dir paths thường không quá dài)
-            strcpy(buf, path);
-            char *p = buf + strlen(buf);
-            *p++ = '/';
-            strcpy(p, de.name);
-
-            struct stat st2;
-            if (stat(buf, &st2) < 0)
-                continue;
-
-            if (onlyDir && st2.type != T_DIR)
-                continue;
-
-            if (count < 256) {
-                entries[count++] = de;
-            }
-        }
-        close(fd);
-
-        for (int i = 0; i < count; i++) {
-            char buf[256];
-            strcpy(buf, path);
-            char *p = buf + strlen(buf);
-            *p++ = '/';
-            strcpy(p, entries[i].name);
-
-            is_last[level] = (i == count - 1);
-            print_indent(level + 1, is_last);
-            printf("%s\n", entries[i].name);
-
-            struct stat st2;
-            if (stat(buf, &st2) >= 0 && st2.type == T_DIR) {
-                tree(buf, level + 1, maxDepth, onlyDir, is_last);
-            }
-        }
-        free(entries); // Giải phóng bộ nhớ sau khi đệ quy xong thư mục hiện tại
-    } else {
-        close(fd);
+    if (st_child.type == T_DIR) {
+      tree(buf, level + 1, max_depth, only_dir);
     }
+  }
+
+  close(fd);
 }
 
 int main(int argc, char *argv[]) {
-    char *path = ".";
-    int maxDepth = -1;
-    int onlyDir = 0;
+  char *path = ".";
+  int max_depth = -1;
+  int only_dir = 0;
 
-    for (int i = 1; i < argc; i++) {
-        if (strcmp(argv[i], "-L") == 0 && i + 1 < argc) {
-            maxDepth = atoi(argv[++i]);
-        } else if (strcmp(argv[i], "-d") == 0) {
-            onlyDir = 1;
-        } else {
-            path = argv[i];
-        }
+  for (int i = 1; i < argc; i++) {
+    if (strcmp(argv[i], "-d") == 0) {
+      only_dir = 1;
+    } else if (strcmp(argv[i], "-L") == 0) {
+      if (i + 1 < argc) {
+        max_depth = atoi(argv[++i]);
+      } else {
+        fprintf(2, "tree: -L requires a depth argument\n");
+        exit(1);
+      }
+    } else if (argv[i][0] != '-') {
+      path = argv[i];
     }
+  }
 
-    int is_last[64]; 
-    printf("%s\n", path);
-    tree(path, 0, maxDepth, onlyDir, is_last);
-    
-    exit(0);
+  // In gốc cây
+  printf("%s\n", path);
+  // Bắt đầu duyệt cấp con đầu tiên (level = 1)
+  tree(path, 1, max_depth, only_dir);
+
+  exit(0);
 }
