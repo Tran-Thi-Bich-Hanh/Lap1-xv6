@@ -42,9 +42,6 @@ int main(int argc, char *argv[]) {
     // Kiểm tra lỗi khi đọc
     if (n < 0) {
         fprintf(2, "cp: read error from %s\n", argv[1]);
-        close(fd_src);
-        close(fd_dst);  
-        exit(1);
     }
 
     // Đóng file descriptors
