@@ -199,6 +199,8 @@ UPROGS=\
 	$U/_sleeptest\
 	$U/_diff\
 	$U/_du\
+	$U/_pingpong\
+	$U/_primes\
 
 
 ifeq ($(LAB),syscall)
