@@ -10,7 +10,6 @@
 int opt_a = 0;
 int opt_s = 0;
 
-// Ghép path thư mục và tên entry thành đường dẫn con.
 int makepath(char *buf, char *path, char *name)
 {
     int i = 0;
@@ -33,9 +32,7 @@ int makepath(char *buf, char *path, char *name)
     return i;
 }
 
-// Tính dung lượng file/thư mục.
-// Khi -a được bật, in cả file và thư mục.
-// Trả về tổng bytes của path.
+
 int du(char *path)
 {
     int fd;
@@ -56,8 +53,6 @@ int du(char *path)
         close(fd);
         return 0;
     }
-
-    // Nếu là file, dung lượng chính là st.size.
     if (st.type == T_FILE) {
         total = st.size;
         close(fd);
@@ -68,13 +63,11 @@ int du(char *path)
         return total;
     }
 
-    // Nếu không phải thư mục, bỏ qua.
     if (st.type != T_DIR) {
         close(fd);
         return 0;
     }
 
-    // Đọc các entry trong thư mục.
     while ((n = read(fd, &de, sizeof(de))) == sizeof(de)) {
         if (de.inum == 0)
             continue;
@@ -90,7 +83,6 @@ int du(char *path)
 
     close(fd);
 
-    // Bản thân thư mục không được cộng st.size.
     if (opt_a || !opt_s)
         printf("%d\t%s\n", total, path);
 
@@ -102,7 +94,6 @@ int main(int argc, char *argv[])
     char *path = ".";
     int i;
 
-    // Tìm path và các option.
     for (i = 1; i < argc; i++) {
         if (strcmp(argv[i], "-a") == 0) {
             opt_a = 1;
@@ -113,7 +104,6 @@ int main(int argc, char *argv[])
         }
     }
 
-    // Nếu -s được bật, chỉ in tổng của path.
     if (opt_s) {
         int total = du(path);
         printf("%d\t%s\n", total, path);

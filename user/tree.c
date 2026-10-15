@@ -100,9 +100,7 @@ int main(int argc, char *argv[]) {
     }
   }
 
-  // In gốc cây
   printf("%s\n", path);
-  // Bắt đầu duyệt cấp con đầu tiên (level = 1)
   tree(path, 1, max_depth, only_dir);
 
   exit(0);

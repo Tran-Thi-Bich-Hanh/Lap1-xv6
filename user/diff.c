@@ -73,16 +73,13 @@ int main(int argc, char *argv[])
 
         exit(1);
     }
-// Đọc lần lượt từng dòng trong file
     while (1) {
 
         n1 = readline(f1, buf1, sizeof(buf1));
         n2 = readline(f2, buf2, sizeof(buf2));
-    // Nếu cả 2 file hết
         if (n1 <= 0 && n2 <= 0) {
             break;
         }
-    // Nếu 1 trong 2 file hết
         if (n1 <= 0) {
             diff = 1;
 
@@ -106,7 +103,6 @@ int main(int argc, char *argv[])
             pos++;
             continue;
         }
-        //Nếu cả 2 còn
         if (strcmp(buf1, buf2) != 0) {
             diff = 1;
 
