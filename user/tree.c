@@ -19,7 +19,7 @@ void tree(char *path, int level, int max_depth, int only_dir) {
   int fd;
   struct stat st;
   struct dirent de;
-  char buf[512], *p;
+  char buf[256], *p;
 
   if ((fd = open(path, O_RDONLY)) < 0) {
     fprintf(2, "tree: cannot open %s\n", path);
@@ -47,22 +47,20 @@ void tree(char *path, int level, int max_depth, int only_dir) {
     if (strcmp(de.name, ".") == 0 || strcmp(de.name, "..") == 0)
       continue;
 
+    // Đảm bảo tên file kết thúc bằng null an toàn
     memmove(p, de.name, DIRSIZ);
     p[DIRSIZ] = 0;
 
-    int child_fd;
-    struct stat st_child;
-
-    child_fd = open(buf, O_RDONLY);
+    int child_fd = open(buf, O_RDONLY);
     if (child_fd < 0) {
-        continue;
+      continue;
     }
 
+    struct stat st_child;
     if (fstat(child_fd, &st_child) < 0) {
-        close(child_fd);
-        continue;
+      close(child_fd);
+      continue;
     }
-
     close(child_fd);
 
     if (only_dir && st_child.type != T_DIR) {
@@ -76,7 +74,6 @@ void tree(char *path, int level, int max_depth, int only_dir) {
       tree(buf, level + 1, max_depth, only_dir);
     }
   }
-
   close(fd);
 }
 
@@ -100,8 +97,21 @@ int main(int argc, char *argv[]) {
     }
   }
 
+  // Kiểm tra tính hợp lệ của path trước khi in
+  int fd = open(path, O_RDONLY);
+  if (fd < 0) {
+    fprintf(2, "tree: cannot open %s\n", path);
+    exit(1);
+  }
+  struct stat st;
+  if (fstat(fd, &st) < 0 || st.type != T_DIR) {
+    fprintf(2, "tree: %s is not a directory\n", path);
+    close(fd);
+    exit(1);
+  }
+  close(fd);
+
   printf("%s\n", path);
   tree(path, 1, max_depth, only_dir);
-
   exit(0);
 }
