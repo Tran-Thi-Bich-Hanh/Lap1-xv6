@@ -125,6 +125,8 @@ found:
   p->pid = allocpid();
   p->state = USED;
 
+  p->mask = 0;
+
   // Allocate a trapframe page.
   if((p->trapframe = (struct trapframe *)kalloc()) == 0){
     freeproc(p);
@@ -298,6 +300,9 @@ fork(void)
 
   // copy saved user registers.
   *(np->trapframe) = *(p->trapframe);
+
+  // Copy the trace mask from parent to child
+  np->mask = p->mask;
 
   // Cause fork to return 0 in the child.
   np->trapframe->a0 = 0;

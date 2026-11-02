@@ -142,3 +142,12 @@ sys_ptree(void)
   kfree((void *)infop);
   return count;
 }
+
+uint64
+sys_trace(void)
+{
+  int mask;
+  argint(0, &mask);
+  myproc()->mask = mask;
+  return 0;
+}
