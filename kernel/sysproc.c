@@ -5,6 +5,7 @@
 #include "memlayout.h"
 #include "spinlock.h"
 #include "proc.h"
+#include "kernel/ptree.h"
 
 uint64
 sys_exit(void)
@@ -90,4 +91,54 @@ sys_uptime(void)
   xticks = ticks;
   release(&tickslock);
   return xticks;
+}
+
+uint64
+sys_ptree(void)
+{
+  uint64 buf_addr;
+  int max;
+
+  // Gọi riêng lẻ vì argaddr / argint có kiểu trả về là void trong phiên bản xv6 này
+  argaddr(0, &buf_addr);
+  argint(1, &max);
+
+  if(max <= 0)
+    return -1;
+
+  // Cấp phát một trang bộ nhớ tạm trong kernel để chứa danh sách tiến trình
+  struct ptreeinfo *infop = (struct ptreeinfo *)kalloc();
+  if(infop == 0)
+    return -1;
+
+  int count = 0;
+  struct proc *p;
+
+  extern struct proc proc[NPROC];
+
+  // Duyệt bảng tiến trình
+  for(p = proc; p < &proc[NPROC]; p++) {
+    acquire(&p->lock);
+    if(p->state != UNUSED) {
+      if(count < max) {
+        infop[count].pid = p->pid;
+        infop[count].ppid = p->parent ? p->parent->pid : 0;
+        infop[count].state = p->state;
+        infop[count].memsize = p->sz;
+        safestrcpy(infop[count].name, p->name, sizeof(infop[count].name));
+        count++;
+      }
+    }
+    release(&p->lock);
+  }
+
+  // Sao chép dữ liệu ra user space bằng copyout
+  struct proc *my_p = myproc();
+  if(copyout(my_p->pagetable, buf_addr, (char *)infop, count * sizeof(struct ptreeinfo)) < 0) {
+    kfree((void *)infop);
+    return -1;
+  }
+
+  kfree((void *)infop);
+  return count;
 }
