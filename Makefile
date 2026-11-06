@@ -196,7 +196,7 @@ UPROGS=\
 	$U/_zombie\
 	$U/_pstree\
 	$U/_trace\
-
+	$U/_sysinfotest\
 
 
 
